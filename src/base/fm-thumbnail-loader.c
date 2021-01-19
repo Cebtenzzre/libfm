@@ -898,7 +898,7 @@ static gboolean generate_thumbnails_with_builtin(ThumbnailTask* task)
 {
     /* FIXME: only formats supported by GObject should be handled this way. */
     GFile* gf = fm_path_to_gfile(fm_file_info_get_path(task->fi));
-    char *file_name;
+    GInputStream *istream;
     GObject* normal_pix = NULL;
     GObject* large_pix = NULL;
     GCancellable *cancellable = task->cancellable;
@@ -974,10 +974,22 @@ static gboolean generate_thumbnails_with_builtin(ThumbnailTask* task)
     if(!ori_pix)
     {
 #endif
-        file_name = g_file_get_path(gf);
-        if (file_name)
-            ori_pix = backend.read_image_from_file(file_name);
-        g_free(file_name);
+        istream = G_INPUT_STREAM(g_file_read(gf, cancellable, NULL));
+        if (istream)
+        {
+            gboolean res;
+            goffset len;
+            res = g_seekable_seek(G_SEEKABLE(istream), 0, G_SEEK_END, cancellable, NULL);
+            if (!res)
+                goto error;
+            len = g_seekable_tell(G_SEEKABLE(istream));
+            res = g_seekable_seek(G_SEEKABLE(istream), 0, G_SEEK_SET, cancellable, NULL);
+            if (!res)
+                goto error;
+            ori_pix = backend.read_image_from_stream(istream, len, cancellable);
+        }
+    error:
+        g_object_unref(istream);
 #ifdef USE_EXIF
     }
 #endif

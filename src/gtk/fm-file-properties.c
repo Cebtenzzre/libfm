@@ -48,7 +48,8 @@
  * - GtkLabel (id size_on_disk) : label: "Size on Disk", id size_on_disk_label
  * - GtkLabel (id mtime)        : label: "Last Modification", id mtime_label
  * - GtkLabel (id atime)        : label: "Last Access", id atime_label
- * - GtkLabel (id ctime)        : (hidden) label: "Last Permissions Change", id ctime_label
+ * - GtkLabel (id ctime)        : (hidden) label: "Last Status Change", id ctime_label
+ * - GtkLabel (id btime)        : label: "File Birth", id btime_label
  *
  * Tab 2: id permissions_tab, contains items inside:
  * - GtkEntry (id owner)        : label: "Owner", id owner_label
@@ -1315,13 +1316,6 @@ static void update_ui(FmFilePropData* data)
             gtk_widget_destroy(data->mtime_label);
             gtk_widget_destroy(GTK_WIDGET(data->mtime));
         }
-        if(fm_file_info_get_btime(data->fi) > 0)
-            gtk_label_set_text(data->btime, fm_file_info_get_disp_btime(data->fi));
-        else
-        {
-            gtk_widget_destroy(data->btime_label);
-            gtk_widget_destroy(GTK_WIDGET(data->btime));
-        }
 
         /* FIXME: need to encapsulate this in an libfm API. */
         atime = fm_file_info_get_atime(data->fi);
@@ -1344,6 +1338,13 @@ static void update_ui(FmFilePropData* data)
             gtk_label_set_text(data->ctime, buf);
             gtk_widget_show(data->ctime_label);
             gtk_widget_show(GTK_WIDGET(data->ctime));
+        }
+        if(fm_file_info_get_btime(data->fi) > 0)
+            gtk_label_set_text(data->btime, fm_file_info_get_disp_btime(data->fi));
+        else
+        {
+            gtk_widget_destroy(data->btime_label);
+            gtk_widget_destroy(GTK_WIDGET(data->btime));
         }
         if (!fm_file_info_can_set_name(data->fi) ||
             fm_file_info_is_shortcut(data->fi))

@@ -130,6 +130,7 @@ static GCond *queue_cond;
 /* load generated thumbnails */
 static GQueue loader_queue = G_QUEUE_INIT; /* consists of ThumbnailTask */
 static gboolean loader_thread_running = FALSE;
+static GThread *loader_thread = NULL;
 
 /* already loaded thumbnails */
 static GQueue ready_queue = G_QUEUE_INIT; /* consists of FmThumbnailLoader */
@@ -510,12 +511,10 @@ _free_task:
         {
             loader_thread_running = FALSE;
             g_mutex_unlock(lock_ptr);
+            g_cond_broadcast(cond_ptr);
             g_free(normal_path);
             g_free(large_path);
             g_checksum_free(sum);
-#if GLIB_CHECK_VERSION(2, 32, 0)
-            g_thread_unref(g_thread_self());
-#endif
             return NULL;
         }
     }
@@ -642,12 +641,9 @@ FmThumbnailLoader* fm_thumbnail_loader_load(FmFileInfo* src_file,
 
     if(!thread_running)
 #if GLIB_CHECK_VERSION(2, 32, 0)
-        g_thread_new("loader", load_thumbnail_thread, NULL);
-        /* we don't use loader_thread_id but Glib 2.32 crashes if we unref
-           GThread while it's in creation progress. It is a bug of GLib
-           certainly but as workaround we'll unref it in the thread itself */
+        loader_thread = g_thread_new("loader", load_thumbnail_thread, NULL);
 #else
-        g_thread_create( load_thumbnail_thread, NULL, FALSE, NULL);
+        loader_thread = g_thread_create( load_thumbnail_thread, NULL, TRUE, NULL);
 #endif
 
     return req;
@@ -792,6 +788,11 @@ void _fm_thumbnail_loader_finalize(void)
     while (loader_thread_running)
         g_cond_wait(cond_ptr, lock_ptr);
     g_mutex_unlock(lock_ptr);
+    if (loader_thread)
+    {
+        g_thread_join(loader_thread);
+        loader_thread = NULL;
+    }
 #if !GLIB_CHECK_VERSION(2, 32, 0)
     g_mutex_free(lock_ptr);
     g_cond_free(cond_ptr);

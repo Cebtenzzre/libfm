@@ -71,6 +71,7 @@ typedef enum {
     FM_FOLDER_MODEL_COL_DIRNAME,
     FM_FOLDER_MODEL_COL_EXT,
     FM_FOLDER_MODEL_COL_BTIME,
+    FM_FOLDER_MODEL_COL_CTIME,
     /*< private >*/
     FM_FOLDER_MODEL_N_COLS
 } FmFolderModelCol;

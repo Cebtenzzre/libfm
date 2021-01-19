@@ -123,6 +123,7 @@ time_t fm_file_info_get_mtime( FmFileInfo* fi );
 const char* fm_file_info_get_disp_btime( FmFileInfo* fi );
 time_t fm_file_info_get_btime( FmFileInfo* fi );
 time_t fm_file_info_get_atime( FmFileInfo* fi );
+const char* fm_file_info_get_disp_ctime( FmFileInfo* fi );
 time_t fm_file_info_get_ctime(FmFileInfo *fi);
 FmIcon* fm_file_info_get_icon( FmFileInfo* fi );
 uid_t fm_file_info_get_uid( FmFileInfo* fi );

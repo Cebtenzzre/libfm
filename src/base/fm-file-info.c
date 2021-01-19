@@ -120,6 +120,7 @@ struct _FmFileInfo
     char* disp_size;  /* displayed human-readable file size */
     char* disp_mtime; /* displayed last modification time */
     char* disp_btime; /* displayed time of file birth */
+    char* disp_ctime; /* displayed time of last status change */
     char* disp_owner;
     char* disp_group;
     FmMimeType* mime_type;
@@ -909,6 +910,12 @@ static void fm_file_info_clear(FmFileInfo* fi)
         fi->disp_btime = NULL;
     }
 
+    if(G_UNLIKELY(fi->disp_ctime))
+    {
+        g_free(fi->disp_ctime);
+        fi->disp_ctime = NULL;
+    }
+
     g_free(fi->disp_owner);
     fi->disp_owner = NULL;
     g_free(fi->disp_group);
@@ -1016,6 +1023,7 @@ void fm_file_info_update(FmFileInfo* fi, FmFileInfo* src)
     fi->disp_size = g_strdup(src->disp_size);
     fi->disp_mtime = g_strdup(src->disp_mtime);
     fi->disp_btime = g_strdup(src->disp_btime);
+    fi->disp_ctime = g_strdup(src->disp_ctime);
     fi->disp_owner = g_strdup(src->disp_owner);
     fi->disp_group = g_strdup(src->disp_group);
     fi->target = g_strdup(src->target);
@@ -1724,6 +1732,33 @@ time_t fm_file_info_get_atime(FmFileInfo* fi)
     return fi->atime;
 }
 
+/**
+ * fm_file_info_get_disp_ctime:
+ * @fi:  A FmFileInfo struct
+ * 
+ * Get a human-readable string for showing file status change time in the UI.
+ * 
+ * This API is not thread-safe and should be used only in default context.
+ *
+ * Returns: a const string owned by FmFileInfo which should not be freed.
+ */
+const char* fm_file_info_get_disp_ctime(FmFileInfo* fi)
+{
+    /* FIXME: This can cause problems if the file really has ctime=0. */
+    /*        We'd better hide ctime for virtual files only. */
+    if(fi->ctime > 0)
+    {
+        if (!fi->disp_ctime)
+        {
+            char buf[ 128 ];
+            strftime(buf, sizeof(buf),
+                      "%x %R",
+                      localtime(&fi->ctime));
+            fi->disp_ctime = g_strdup(buf);
+        }
+    }
+    return fi->disp_ctime;
+}
 /**
  * fm_file_info_get_ctime
  * @fi: a file info to inspect

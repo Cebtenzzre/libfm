@@ -622,7 +622,35 @@ static void on_open(GtkAction* action, gpointer user_data)
     FmFileMenu* data = (FmFileMenu*)user_data;
     GList* l = fm_file_info_list_peek_head_link(data->file_infos);
     GtkWindow *window = GTK_WINDOW(gtk_menu_get_attach_widget(data->menu));
+    char *old_cwd = g_get_current_dir();
+    char *old_pwd = g_strdup(g_getenv("PWD"));
+    char *new_cwd = fm_path_to_str(data->cwd);
+
+    /* start in the directory the files are in */
+    g_setenv("PWD", new_cwd, TRUE);
+    if (g_chdir(new_cwd) < 0)
+    {
+        g_free(old_cwd);
+        old_cwd = NULL;
+    }
+    g_free(new_cwd);
+
     fm_launch_files_simple(window, NULL, l, data->folder_func, data->folder_func_data);
+
+    /* reset cwd */
+    if (old_cwd)
+    {
+        if (g_chdir(old_cwd) < 0)
+            g_warning("open_with_app(): chdir() failed");
+        g_free(old_cwd);
+    }
+    if (old_pwd)
+    {
+        g_setenv("PWD", old_pwd, TRUE);
+        g_free(old_pwd);
+    }
+    else
+        g_unsetenv("PWD");
 }
 
 static void open_with_app(FmFileMenu* data, GAppInfo* app)
@@ -631,6 +659,9 @@ static void open_with_app(FmFileMenu* data, GAppInfo* app)
     FmFileInfoList* files = data->file_infos;
     GList* l = fm_file_info_list_peek_head_link(files);
     GList* uris = NULL;
+    char *old_cwd = g_get_current_dir();
+    char *old_pwd = g_strdup(g_getenv("PWD"));
+    char *new_cwd = fm_path_to_str(data->cwd);
     int i;
     for(i=0; l; ++i, l=l->next)
     {
@@ -655,8 +686,33 @@ static void open_with_app(FmFileMenu* data, GAppInfo* app)
     gdk_app_launch_context_set_timestamp(ctx, gtk_get_current_event_time());
 
     /* FIXME: error handling. */
+
+    /* start in the directory the files are in */
+    g_setenv("PWD", new_cwd, TRUE);
+    if (g_chdir(new_cwd) < 0)
+    {
+        g_free(old_cwd);
+        old_cwd = NULL;
+    }
+    g_free(new_cwd);
+
     fm_app_info_launch_uris(app, uris, G_APP_LAUNCH_CONTEXT(ctx), NULL);
     g_object_unref(ctx);
+
+    /* reset cwd */
+    if (old_cwd)
+    {
+        if (g_chdir(old_cwd) < 0)
+            g_warning("open_with_app(): chdir() failed");
+        g_free(old_cwd);
+    }
+    if (old_pwd)
+    {
+        g_setenv("PWD", old_pwd, TRUE);
+        g_free(old_pwd);
+    }
+    else
+        g_unsetenv("PWD");
 
     g_list_foreach(uris, (GFunc)g_free, NULL);
     g_list_free(uris);

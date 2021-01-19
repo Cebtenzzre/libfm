@@ -40,19 +40,48 @@ static void on_custom_action_file(GtkAction* act, gpointer menu)
     GdkAppLaunchContext* ctx = gdk_display_get_app_launch_context(gdk_display_get_default());
     GList* files = fm_file_info_list_peek_head_link(fm_file_menu_get_file_info_list(menu));
     GError *err = NULL;
+    char *old_cwd = g_get_current_dir();
+    char *old_pwd = g_strdup(g_getenv("PWD"));
+    char *new_cwd = fm_path_to_str(fm_file_menu_get_cwd(menu));
 
     gdk_app_launch_context_set_screen(ctx, gtk_widget_get_screen(GTK_WIDGET(fm_file_menu_get_menu(menu))));
     gdk_app_launch_context_set_timestamp(ctx, gtk_get_current_event_time());
 
     /* g_debug("item: %s is activated, id:%s", fm_file_action_item_get_name(item),
         fm_file_action_item_get_id(item)); */
+
+    /* start in the directory the files are in */
+    g_setenv("PWD", new_cwd, TRUE);
+    if (g_chdir(new_cwd) < 0)
+    {
+        g_free(old_cwd);
+        old_cwd = NULL;
+    }
+    g_free(new_cwd);
+
     g_app_info_launch(item, files, G_APP_LAUNCH_CONTEXT(ctx), &err);
+    g_object_unref(ctx);
+
+    /* reset cwd */
+    if (old_cwd)
+    {
+        if (g_chdir(old_cwd) < 0)
+            g_warning("on_custom_action_file(): chdir() failed");
+        g_free(old_cwd);
+    }
+    if (old_pwd)
+    {
+        g_setenv("PWD", old_pwd, TRUE);
+        g_free(old_pwd);
+    }
+    else
+        g_unsetenv("PWD");
+
     if (err)
     {
         fm_show_error(NULL, "output", err->message);
         g_error_free(err);
     }
-    g_object_unref(ctx);
 }
 
 static void on_custom_action_folder(GtkAction* act, gpointer folder_view)

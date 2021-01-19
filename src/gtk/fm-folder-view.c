@@ -1756,6 +1756,7 @@ void fm_folder_view_item_clicked(FmFolderView* fv, GtkTreePath* path,
     FmFolderViewUpdatePopup update_popup;
     FmLaunchFolderFunc open_folders;
     GtkTreeIter it;
+    char *old_cwd, *old_pwd, *new_cwd;
 
     g_return_if_fail(FM_IS_FOLDER_VIEW(fv));
 
@@ -1786,9 +1787,37 @@ void fm_folder_view_item_clicked(FmFolderView* fv, GtkTreePath* path,
             files = fm_file_info_list_new();
             fm_file_info_list_push_tail(files, fi);
         }
+
+        /* start in the directory the files are in */
+        old_cwd = g_get_current_dir();
+        old_pwd = g_strdup(g_getenv("PWD"));
+        new_cwd = fm_path_to_str(fm_folder_view_get_cwd(fv));
+        g_setenv("PWD", new_cwd, TRUE);
+        if (g_chdir(new_cwd) < 0)
+        {
+            g_free(old_cwd);
+            old_cwd = NULL;
+        }
+        g_free(new_cwd);
+
         fm_launch_files_simple(win, NULL, fm_file_info_list_peek_head_link(files),
                                open_folders, win);
         fm_file_info_list_unref(files);
+
+        /* reset cwd */
+        if (old_cwd)
+        {
+            if (g_chdir(old_cwd) < 0)
+                g_warning("open_with_app(): chdir() failed");
+            g_free(old_cwd);
+        }
+        if (old_pwd)
+        {
+            g_setenv("PWD", old_pwd, TRUE);
+            g_free(old_pwd);
+        }
+        else
+            g_unsetenv("PWD");
         break;
     case FM_FV_CONTEXT_MENU:
         if(fi && iface->count_selected_files(fv) > 0)

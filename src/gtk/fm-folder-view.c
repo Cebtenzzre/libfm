@@ -369,6 +369,17 @@ static void on_filter_changed(FmFolderModel* model, FmFolderView* fv)
     g_signal_emit(fv, signals[FILTER_CHANGED], 0);
 }
 
+static void apply_paste_list(FmPathList* paste_list, FmFolderView* fv)
+{
+    /* Scroll to first item */
+    GList *l = fm_path_list_peek_head_link(paste_list);
+    if (l)
+        fm_folder_view_scroll_to_path(fv, FM_PATH(l->data), FALSE);
+    /* Set selection to the new files */
+    fm_folder_view_unselect_all(fv);
+    fm_folder_view_select_file_paths(fv, paste_list);
+}
+
 /**
  * fm_folder_view_set_selection_mode
  * @fv: a widget to apply
@@ -630,6 +641,7 @@ static void unset_model(FmFolderView* fv, FmFolderModel* model)
 {
     g_signal_handlers_disconnect_by_func(model, on_sort_col_changed, fv);
     g_signal_handlers_disconnect_by_func(model, on_filter_changed, fv);
+    fm_folder_model_set_paste_list_callback(model, NULL, NULL);
 }
 
 /**
@@ -667,6 +679,7 @@ void fm_folder_view_set_model(FmFolderView* fv, FmFolderModel* model)
         fm_folder_model_set_sort(model, by, mode);
         g_signal_connect(model, "sort-column-changed", G_CALLBACK(on_sort_col_changed), fv);
         g_signal_connect(model, "filter-changed", G_CALLBACK(on_filter_changed), fv);
+        fm_folder_model_set_paste_list_callback(model, apply_paste_list, fv);
     }
 }
 
@@ -972,7 +985,14 @@ static void on_paste(GtkAction* act, FmFolderView* fv)
     if(FOCUS_IS_IN_FOLDER_VIEW(focus, GTK_WIDGET(fv)))
     {
         FmPath* path = fm_folder_view_get_cwd(fv);
-        fm_clipboard_paste_files(GTK_WIDGET(fv), path);
+        FmFolderModel* model = fm_folder_view_get_model(fv);
+        FmPathList* paste_list = NULL;
+        if (model)
+        {
+            paste_list = fm_path_list_new();
+            fm_folder_model_set_paste_list(model, paste_list);
+        }
+        fm_clipboard_paste_files(GTK_WIDGET(fv), path, paste_list);
     }
     else if(GTK_IS_EDITABLE(focus)) /* fallback for editables */
         gtk_editable_paste_clipboard((GtkEditable*)focus);

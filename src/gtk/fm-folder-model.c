@@ -73,6 +73,9 @@ struct _FmFolderModel
     GHashTable* items_hash;
 
     GSList* filters;
+    FmPathList* paste_list;
+    void (*paste_list_callback)(FmPathList*, gpointer);
+    gpointer paste_list_callback_data;
 };
 
 typedef struct _FmFolderItem FmFolderItem;
@@ -447,6 +450,13 @@ static void _fm_folder_model_files_added(FmFolder* dir, GSList* files,
     {
         FmFileInfo* fi = FM_FILE_INFO(l->data);
         _fm_folder_model_add_file(model, fi);
+    }
+    if (model->paste_list_callback && model->paste_list)
+    {
+        model->paste_list_callback(model->paste_list, model->paste_list_callback_data);
+        /* Clean up */
+        fm_path_list_unref(model->paste_list);
+        model->paste_list = NULL;
     }
 }
 
@@ -2062,6 +2072,34 @@ gboolean fm_folder_model_get_sort(FmFolderModel* model, FmFolderModelCol *col,
     if(mode)
         *mode = model->sort_mode;
     return TRUE;
+}
+
+/**
+ * fm_folder_model_set_paste_list
+ * @model: the folder model instance
+ * @paste_list: the paste list
+ *
+ * Changes the paste list of @model.
+ */
+void fm_folder_model_set_paste_list(FmFolderModel* model, FmPathList* paste_list)
+{
+    g_return_if_fail(model != NULL);
+    model->paste_list = paste_list;
+}
+
+/**
+ * fm_folder_model_set_paste_list_callback
+ * @model: the folder model instance
+ * @callback: the paste list callback
+ * @user_data: the paste list user data
+ *
+ * Changes the paste list callback of @model.
+ */
+void fm_folder_model_set_paste_list_callback(FmFolderModel* model, void (*callback)(FmPathList*, gpointer), gpointer user_data)
+{
+    g_return_if_fail(model != NULL);
+    model->paste_list_callback = callback;
+    model->paste_list_callback_data = user_data;
 }
 
 /* FmFolderModelCol APIs */

@@ -35,7 +35,9 @@
 
 #include "gtk-compat.h"
 #include "fm-clipboard.h"
+#include "fm-file-ops-job.h"
 #include "fm-gtk-utils.h"
+#include "fm-progress-dlg.h"
 
 enum {
     URI_LIST = 1,
@@ -187,6 +189,7 @@ static gboolean check_kde_curselection(GtkClipboard* clip)
  * fm_clipboard_paste_files
  * @dest_widget: widget where to paste files
  * @dest_dir: directory to place files
+ * @dests: destination paths
  *
  * Copies or moves files from system clipboard into @dest_dir.
  *
@@ -194,7 +197,7 @@ static gboolean check_kde_curselection(GtkClipboard* clip)
  *
  * Since: 0.1.0
  */
-gboolean fm_clipboard_paste_files(GtkWidget* dest_widget, FmPath* dest_dir)
+gboolean fm_clipboard_paste_files(GtkWidget* dest_widget, FmPath* dest_dir, FmPathList* dests)
 {
     GdkDisplay* dpy;
     GtkClipboard* clip;
@@ -304,10 +307,11 @@ gboolean fm_clipboard_paste_files(GtkWidget* dest_widget, FmPath* dest_dir)
 
             if(!fm_path_list_is_empty(files))
             {
-                if( _is_cut )
-                    fm_move_files(GTK_WINDOW(parent), files, dest_dir);
-                else
-                    fm_copy_files(GTK_WINDOW(parent), files, dest_dir);
+                FmFileOpsJob* job = fm_file_ops_job_new(_is_cut ? FM_FILE_OP_MOVE : FM_FILE_OP_COPY, files);
+                if (dests)
+                    job->dests = dests;
+                fm_file_ops_job_set_dest(job, dest_dir);
+                fm_file_ops_job_run_with_progress(GTK_WINDOW(parent), job); /* it eats reference! */
             }
             fm_path_list_unref(files);
             return TRUE;

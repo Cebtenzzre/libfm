@@ -718,7 +718,7 @@ static void on_paste(GtkAction* action, gpointer user_data)
     if (fi)
     {
         fm_clipboard_paste_files(gtk_menu_get_attach_widget(data->menu),
-                                 fm_file_info_get_path(fi));
+                                 fm_file_info_get_path(fi), NULL);
     }
 }
 

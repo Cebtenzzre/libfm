@@ -36,7 +36,7 @@ G_BEGIN_DECLS
 
 gboolean fm_clipboard_cut_or_copy_files(GtkWidget* src_widget, FmPathList* files, gboolean _is_cut);
 
-gboolean fm_clipboard_paste_files(GtkWidget* dest_widget, FmPath* dest_dir);
+gboolean fm_clipboard_paste_files(GtkWidget* dest_widget, FmPath* dest_dir, FmPathList* dests);
 
 gboolean fm_clipboard_have_files(GtkWidget* dest_widget);
 

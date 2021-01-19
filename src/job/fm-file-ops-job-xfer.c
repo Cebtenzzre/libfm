@@ -250,6 +250,8 @@ _retry_chmod_for_dir:
                 fm_dest = fm_path_new_for_gfile(dest);
                 sub_folder = fm_folder_find_by_path(fm_dest);
                 /* inform folder we created directory */
+                if (dest_folder && job->dests)
+                    fm_path_list_push_tail(job->dests, fm_dest);
                 if (!dest_folder || !_fm_folder_event_file_added(dest_folder, fm_dest))
                     fm_path_unref(fm_dest);
 _retry_enum_children:
@@ -469,6 +471,8 @@ _file_copied:
         if(ret && dest_folder)
         {
             fm_dest = fm_path_new_for_gfile(dest);
+            if (job->dests)
+                fm_path_list_push_tail(job->dests, fm_dest);
             if(!_fm_folder_event_file_added(dest_folder, fm_dest))
                 fm_path_unref(fm_dest);
         }
@@ -649,6 +653,8 @@ _retry_move:
         {
             if (src_folder)
                 _fm_folder_event_file_deleted(src_folder, src_path);
+            if (dest_folder && job->dests)
+                fm_path_list_push_tail(job->dests, fm_dest);
             if (!dest_folder || !_fm_folder_event_file_added(dest_folder, fm_dest))
                 fm_path_unref(fm_dest);
         }

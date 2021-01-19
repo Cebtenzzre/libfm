@@ -130,9 +130,10 @@ struct _FmFileOpsJob
 
     FmFileOpOption supported_options;
 
+    FmPathList* dests;
+
     /*< private >*/
     gpointer _reserved1;
-    gpointer _reserved2;
 };
 
 /**

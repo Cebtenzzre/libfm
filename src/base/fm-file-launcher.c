@@ -289,13 +289,14 @@ _launch_desktop_entry:
                                 g_list_free(fis);
                                 g_object_unref(app);
                             }
-                            else if (launcher->error)
+                            else
                                 g_set_error(&err, G_IO_ERROR, G_IO_ERROR_FAILED,
                                             _("No default application is set to launch URIs %s://"),
                                             scheme);
                             if (err)
                             {
-                                launcher->error(ctx, err, NULL, user_data);
+                                if (launcher->error)
+                                    launcher->error(ctx, err, NULL, user_data);
                                 g_clear_error(&err);
                             }
                             g_free(scheme);
@@ -449,7 +450,7 @@ _launch_desktop_entry:
                 g_list_foreach(fis, (GFunc)g_free, NULL);
                 g_object_unref(app);
             }
-            else if (launcher->error && !launcher->get_app)
+            else if (!launcher->get_app)
                 /* SF#837: don't show an error window after user pressed
                    'Cancel' in the selection window, it'll annoy user */
                 g_set_error(&err, G_IO_ERROR, G_IO_ERROR_FAILED,
@@ -457,7 +458,8 @@ _launch_desktop_entry:
                             type);
             if (err)
             {
-                launcher->error(ctx, err, NULL, user_data);
+                if (launcher->error)
+                    launcher->error(ctx, err, NULL, user_data);
                 g_clear_error(&err);
             }
             g_list_free(fis);

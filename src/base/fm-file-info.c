@@ -624,7 +624,7 @@ void fm_file_info_set_from_g_file_data(FmFileInfo *fi, GFile *gf, GFileInfo *inf
         case G_FILE_TYPE_MOUNTABLE:
             break;
         case G_FILE_TYPE_SPECIAL:
-            if(fi->mode)
+            if(fi->mode || !tmp)
                 break;
         /* if it's a special file but it doesn't have UNIX mode, compose a fake one. */
             if(strcmp(tmp, "inode/chardevice")==0)

@@ -960,7 +960,7 @@ gboolean fm_launch_search_simple(GtkWindow* parent, GAppLaunchContext* ctx,
         }
         else
             mask = expr = g_strdup(c);
-        if (*mask == '/') /* else corrupted */
+        if (mask && *mask == '/') /* else corrupted */
         {
             mask++;
             c = strchr(mask, '/');

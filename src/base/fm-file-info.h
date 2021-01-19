@@ -120,6 +120,8 @@ const char* fm_file_info_get_collate_key_nocasefold(FmFileInfo* fi);
 const char* fm_file_info_get_desc( FmFileInfo* fi );
 const char* fm_file_info_get_disp_mtime( FmFileInfo* fi );
 time_t fm_file_info_get_mtime( FmFileInfo* fi );
+const char* fm_file_info_get_disp_btime( FmFileInfo* fi );
+time_t fm_file_info_get_btime( FmFileInfo* fi );
 time_t fm_file_info_get_atime( FmFileInfo* fi );
 time_t fm_file_info_get_ctime(FmFileInfo *fi);
 FmIcon* fm_file_info_get_icon( FmFileInfo* fi );

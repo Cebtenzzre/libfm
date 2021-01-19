@@ -173,6 +173,8 @@ struct _FmFilePropData
     GtkLabel* size_on_disk;
     GtkLabel* mtime;
     GtkWidget* mtime_label;
+    GtkLabel* btime;
+    GtkWidget* btime_label;
     GtkLabel* atime;
     GtkWidget* atime_label;
     GtkLabel* ctime;
@@ -1313,6 +1315,13 @@ static void update_ui(FmFilePropData* data)
             gtk_widget_destroy(data->mtime_label);
             gtk_widget_destroy(GTK_WIDGET(data->mtime));
         }
+        if(fm_file_info_get_btime(data->fi) > 0)
+            gtk_label_set_text(data->btime, fm_file_info_get_disp_btime(data->fi));
+        else
+        {
+            gtk_widget_destroy(data->btime_label);
+            gtk_widget_destroy(GTK_WIDGET(data->btime));
+        }
 
         /* FIXME: need to encapsulate this in an libfm API. */
         atime = fm_file_info_get_atime(data->fi);
@@ -1439,6 +1448,8 @@ GtkDialog* fm_file_properties_widget_new(FmFileInfoList* files, gboolean topleve
     GET_WIDGET(GTK_LABEL,size_on_disk);
     GET_WIDGET(GTK_LABEL,mtime);
     GET_WIDGET(GTK_WIDGET,mtime_label);
+    GET_WIDGET(GTK_LABEL,btime);
+    GET_WIDGET(GTK_WIDGET,btime_label);
     GET_WIDGET(GTK_LABEL,atime);
     GET_WIDGET(GTK_WIDGET,atime_label);
     GET_WIDGET(GTK_LABEL,ctime);

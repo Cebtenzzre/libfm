@@ -145,12 +145,10 @@ FmMimeType* fm_mime_type_from_file_name(const char* ufile_name)
  * Since: 0.1.0
  */
 FmMimeType* fm_mime_type_from_native_file(const char* file_path,
-                                        const char* base_name,
-                                        struct stat* pstat)
+                                          const char* base_name,
+                                          struct stat* pstat)
 {
-    FmMimeType* mime_type;
     struct stat st;
-
     if(!pstat)
     {
         pstat = &st;
@@ -158,14 +156,24 @@ FmMimeType* fm_mime_type_from_native_file(const char* file_path,
             return NULL;
     }
 
-    if(S_ISREG(pstat->st_mode))
+    return fm_mime_type_from_native_file_ms(file_path, base_name, pstat->st_mode, pstat->st_size);
+}
+
+FmMimeType* fm_mime_type_from_native_file_ms(const char* file_path,
+                                             const char* base_name,
+                                             mode_t stat_mode,
+                                             size_t stat_size)
+{
+    FmMimeType* mime_type;
+
+    if(S_ISREG(stat_mode))
     {
         gboolean uncertain;
         char* type = g_content_type_guess(base_name, NULL, 0, &uncertain);
         if(uncertain)
         {
             int fd, len;
-            if(pstat->st_size == 0) /* empty file = text file with 0 characters in it. */
+            if(stat_size == 0) /* empty file = text file with 0 characters in it. */
             {
                 g_free(type);
                 return fm_mime_type_from_name("text/plain");
@@ -181,21 +189,8 @@ FmMimeType* fm_mime_type_from_native_file(const char* file_path,
                  * to I/O errors. If the mapped file is truncated by other
                  * processes or I/O errors happen, we may receive SIGBUS.
                  * It's a pity that we cannot use mmap for speed up here. */
-            /*
-            #ifdef HAVE_MMAP
-                const char* buf;
-                len = pstat->st_size > 4096 ? 4096 : pstat->st_size;
-                buf = (const char*)mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0);
-                if(G_LIKELY(buf != MAP_FAILED))
-                {
-                    g_free(type);
-                    type = g_content_type_guess(NULL, buf, len, &uncertain);
-                    munmap(buf, len);
-                }
-            #else
-            */
                 char buf[4096];
-                len = read(fd, buf, MIN(pstat->st_size, 4096));
+                len = read(fd, buf, MIN(stat_size, 4096));
                 const char *tmp;
                 char *qtype = type; /* questionable type */
                 close(fd);
@@ -226,22 +221,22 @@ FmMimeType* fm_mime_type_from_native_file(const char* file_path,
         return mime_type;
     }
 
-    if(S_ISDIR(pstat->st_mode))
+    if(S_ISDIR(stat_mode))
         return fm_mime_type_ref(directory_type);
-    if (S_ISCHR(pstat->st_mode))
+    if (S_ISCHR(stat_mode))
         return fm_mime_type_from_name("inode/chardevice");
-    if (S_ISBLK(pstat->st_mode))
+    if (S_ISBLK(stat_mode))
         return fm_mime_type_from_name("inode/blockdevice");
-    if (S_ISFIFO(pstat->st_mode))
+    if (S_ISFIFO(stat_mode))
         return fm_mime_type_from_name("inode/fifo");
-    if (S_ISLNK(pstat->st_mode))
+    if (S_ISLNK(stat_mode))
         return fm_mime_type_from_name("inode/symlink");
 #ifdef S_ISSOCK
-    if (S_ISSOCK(pstat->st_mode))
+    if (S_ISSOCK(stat_mode))
         return fm_mime_type_from_name("inode/socket");
 #endif
     /* impossible */
-    g_debug("Invalid stat mode: %d, %s", pstat->st_mode & S_IFMT, base_name);
+    g_debug("Invalid stat mode: %d, %s", stat_mode & S_IFMT, base_name);
     /* FIXME: some files under /proc/self has st_mode = 0, which causes problems.
      *        currently we treat them as files of unknown type. */
     return fm_mime_type_from_name("application/octet-stream");

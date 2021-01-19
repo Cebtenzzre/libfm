@@ -193,6 +193,7 @@ static FmFolderModelInfo column_infos_raw[] = {
     { FM_FOLDER_MODEL_COL_PERM, 0, "perm", N_("Permissions"), FALSE },
     { FM_FOLDER_MODEL_COL_OWNER, 0, "owner", N_("Owner"), FALSE },
     { FM_FOLDER_MODEL_COL_MTIME, 0, "mtime", N_("Modified"), TRUE },
+    { FM_FOLDER_MODEL_COL_BTIME, 0, "btime", N_("Birth"), TRUE },
     { FM_FOLDER_MODEL_COL_DIRNAME, 0, "dirname", N_("Location"), TRUE },
     { FM_FOLDER_MODEL_COL_EXT, 0, "ext", N_("Extension"), TRUE },
     /* columns used internally */
@@ -809,6 +810,9 @@ static void fm_folder_model_get_value(GtkTreeModel *tree_model,
     case FM_FOLDER_MODEL_COL_MTIME:
         g_value_set_string( value, fm_file_info_get_disp_mtime(info) );
         break;
+    case FM_FOLDER_MODEL_COL_BTIME:
+        g_value_set_string( value, fm_file_info_get_disp_btime(info) );
+        break;
     case FM_FOLDER_MODEL_COL_INFO:
         g_value_set_pointer(value, info);
         break;
@@ -1071,6 +1075,11 @@ _main_sort:
         break;
     case FM_FOLDER_MODEL_COL_MTIME:
         ret = fm_file_info_get_mtime(file1) - fm_file_info_get_mtime(file2);
+        if(0 == ret)
+            goto _sort_by_name;
+        break;
+    case FM_FOLDER_MODEL_COL_BTIME:
+        ret = fm_file_info_get_btime(file1) - fm_file_info_get_btime(file2);
         if(0 == ret)
             goto _sort_by_name;
         break;
@@ -2245,6 +2254,7 @@ void _fm_folder_model_init(void)
     column_infos[FM_FOLDER_MODEL_COL_PERM]->type= G_TYPE_STRING;
     column_infos[FM_FOLDER_MODEL_COL_OWNER]->type= G_TYPE_STRING;
     column_infos[FM_FOLDER_MODEL_COL_MTIME]->type= G_TYPE_STRING;
+    column_infos[FM_FOLDER_MODEL_COL_BTIME]->type= G_TYPE_STRING;
     column_infos[FM_FOLDER_MODEL_COL_DIRNAME]->type= G_TYPE_STRING;
     column_infos[FM_FOLDER_MODEL_COL_EXT]->type= G_TYPE_STRING;
 

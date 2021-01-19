@@ -32,6 +32,8 @@
  *
  */
 
+#define _GNU_SOURCE /* For statx() */
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -47,6 +49,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -101,6 +104,7 @@ struct _FmFileInfo
     gid_t gid;
     goffset size;
     time_t mtime;
+    time_t btime;
     time_t atime;
     time_t ctime;
 
@@ -115,6 +119,7 @@ struct _FmFileInfo
     char* collate_key_case; /* the same but case-sensitive */
     char* disp_size;  /* displayed human-readable file size */
     char* disp_mtime; /* displayed last modification time */
+    char* disp_btime; /* displayed time of file birth */
     char* disp_owner;
     char* disp_group;
     FmMimeType* mime_type;
@@ -239,28 +244,51 @@ static void _fm_file_info_set_emblems(FmFileInfo* fi, GFileInfo* inf)
 gboolean _fm_file_info_set_from_native_file(FmFileInfo* fi, const char* path,
                                             GError** err, gboolean get_fast)
 {
-    struct stat st;
+    int ret;
+    union { struct statx stx; struct stat st; } st;
     char *dname;
 
     g_return_val_if_fail(fi && fi->path, FALSE);
-    if(lstat(path, &st) == 0)
+    if((ret = statx(AT_FDCWD, path, AT_SYMLINK_NOFOLLOW, STATX_BASIC_STATS | STATX_BTIME, &st.stx)) == 0)
+    {
+        fi->mode = st.stx.stx_mode;
+        fi->mtime = st.stx.stx_mtime.tv_sec;
+        fi->btime = st.stx.stx_btime.tv_sec;
+        fi->atime = st.stx.stx_atime.tv_sec;
+        fi->ctime = st.stx.stx_ctime.tv_sec;
+        fi->size = st.stx.stx_size;
+        fi->dev = makedev(st.stx.stx_dev_major, st.stx.stx_dev_minor);
+        fi->uid = st.stx.stx_uid;
+        fi->gid = st.stx.stx_gid;
+    }
+    else if(ret < 0 && errno == ENOSYS && (ret = lstat(path, &st.st)) == 0)
+    {
+        fi->mode = st.st.st_mode;
+        fi->mtime = st.st.st_mtime;
+        fi->atime = st.st.st_atime;
+        fi->ctime = st.st.st_ctime;
+        fi->size = st.st.st_size;
+        fi->dev = st.st.st_dev;
+        fi->uid = st.st.st_uid;
+        fi->gid = st.st.st_gid;
+    }
+
+    if(ret == 0)
     {
         GFile* gfile;
         GFileInfo* inf;
-
-        fi->mode = st.st_mode;
-        fi->mtime = st.st_mtime;
-        fi->atime = st.st_atime;
-        fi->ctime = st.st_ctime;
-        fi->size = st.st_size;
-        fi->dev = st.st_dev;
-        fi->uid = st.st_uid;
-        fi->gid = st.st_gid;
+        mode_t stat_mode = fi->mode;
+        size_t stat_size = fi->size;
 
         /* handle symlinks: use target to retrieve its info */
-        if(S_ISLNK(st.st_mode))
+        if(S_ISLNK(fi->mode))
         {
-            if (stat(path, &st) < 0)
+            if(stat(path, &st.st) == 0)
+            {
+                stat_mode = st.st.st_mode;
+                stat_size = st.st.st_size;
+            }
+            else
             {
                 /* g_debug("invalid symlink: %s", strerror(errno)); */
                 fi->icon = fm_icon_from_name("dialog-warning");
@@ -274,27 +302,27 @@ gboolean _fm_file_info_set_from_native_file(FmFileInfo* fi, const char* path,
          * dirs with . prefix are regarded as hidden dirs. */
         dname = (char*)fm_path_get_basename(fi->path);
         fi->hidden = (dname[0] == '.');
-        fi->backup = (!S_ISDIR(st.st_mode) && g_str_has_suffix(dname, "~"));
+        fi->backup = (!S_ISDIR(stat_mode) && g_str_has_suffix(dname, "~"));
         dname = NULL;
 
-        if (get_fast && S_ISREG(st.st_mode)) /* do rough estimation */
+        if (get_fast && S_ISREG(stat_mode)) /* do rough estimation */
         {
             /* for non-regular files fm_mime_type_from_native_file() is fast */
-            if ((st.st_mode & S_IXUSR) == S_IXUSR) /* executable */
+            if ((stat_mode & S_IXUSR) == S_IXUSR) /* executable */
                 fi->mime_type = fm_mime_type_from_name("application/x-executable");
             else
                 fi->mime_type = fm_mime_type_from_file_name(fm_path_get_basename(fi->path));
         }
         else
         {
-            fi->mime_type = fm_mime_type_from_native_file(path, fm_path_get_basename(fi->path), &st);
+            fi->mime_type = fm_mime_type_from_native_file_ms(path, fm_path_get_basename(fi->path), stat_mode, stat_size);
             if (G_UNLIKELY(fi->mime_type == NULL))
                 /* file might be deleted while we test it but we assume mime_type is not NULL */
                 fi->mime_type = fm_mime_type_from_name("application/octet-stream");
         }
 
         if (get_fast) /* do rough estimation */
-            fi->accessible = ((st.st_mode & S_IRUSR) == S_IRUSR);
+            fi->accessible = ((stat_mode & S_IRUSR) == S_IRUSR);
         else
             fi->accessible = (g_access(path, R_OK) == 0);
 
@@ -381,12 +409,12 @@ _not_desktop_entry:
                 fi->icon = g_object_ref(fm_mime_type_get_icon(fi->mime_type));
             g_key_file_free(kf);
         }
-        else if(!S_ISDIR(st.st_mode))
+        else if(!S_ISDIR(stat_mode))
             ;
         /* set "locked" icon on unaccesible folder */
         else if(!fi->accessible)
             fi->icon = g_object_ref(icon_locked_folder);
-        else if(!get_fast && S_ISDIR(st.st_mode)) /* special handling for folder icons */
+        else if(!get_fast && S_ISDIR(stat_mode)) /* special handling for folder icons */
         {
             FmPath* fmpath = fi->path;
 
@@ -462,7 +490,7 @@ _not_desktop_entry:
 
         /* check if directory's file system is read-only, default is FALSE */
         fi->fs_is_ro = FALSE;
-        if (S_ISDIR(st.st_mode))
+        if (S_ISDIR(stat_mode))
         {
             inf = g_file_query_filesystem_info(gfile, G_FILE_ATTRIBUTE_FILESYSTEM_READONLY,
                                                NULL, NULL);
@@ -875,6 +903,12 @@ static void fm_file_info_clear(FmFileInfo* fi)
         fi->disp_mtime = NULL;
     }
 
+    if(G_UNLIKELY(fi->disp_btime))
+    {
+        g_free(fi->disp_btime);
+        fi->disp_btime = NULL;
+    }
+
     g_free(fi->disp_owner);
     fi->disp_owner = NULL;
     g_free(fi->disp_group);
@@ -981,6 +1015,7 @@ void fm_file_info_update(FmFileInfo* fi, FmFileInfo* src)
         fi->collate_key_case = g_strdup(src->collate_key_case);
     fi->disp_size = g_strdup(src->disp_size);
     fi->disp_mtime = g_strdup(src->disp_mtime);
+    fi->disp_btime = g_strdup(src->disp_btime);
     fi->disp_owner = g_strdup(src->disp_owner);
     fi->disp_group = g_strdup(src->disp_group);
     fi->target = g_strdup(src->target);
@@ -1637,6 +1672,45 @@ const char* fm_file_info_get_disp_mtime(FmFileInfo* fi)
 time_t fm_file_info_get_mtime(FmFileInfo* fi)
 {
     return fi->mtime;
+}
+
+/**
+ * fm_file_info_get_disp_btime:
+ * @fi:  A FmFileInfo struct
+ * 
+ * Get a human-readable string for showing file birth time in the UI.
+ * 
+ * This API is not thread-safe and should be used only in default context.
+ *
+ * Returns: a const string owned by FmFileInfo which should not be freed.
+ */
+const char* fm_file_info_get_disp_btime(FmFileInfo* fi)
+{
+    /* FIXME: This can cause problems if the file really has btime=0. */
+    /*        We'd better hide btime for virtual files only. */
+    if(fi->btime > 0)
+    {
+        if (!fi->disp_btime)
+        {
+            char buf[ 128 ];
+            strftime(buf, sizeof(buf),
+                      "%x %R",
+                      localtime(&fi->btime));
+            fi->disp_btime = g_strdup(buf);
+        }
+    }
+    return fi->disp_btime;
+}
+
+/**
+ * fm_file_info_get_btime:
+ * @fi:  A FmFileInfo struct
+ * 
+ * Returns: file birth time.
+ */
+time_t fm_file_info_get_btime(FmFileInfo* fi)
+{
+    return fi->btime;
 }
 
 /**

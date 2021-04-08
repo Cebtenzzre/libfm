@@ -805,14 +805,15 @@ void _fm_thumbnail_loader_finalize(void)
 /* in thread */
 static void generate_thumbnails(ThumbnailTask* task)
 {
+    gboolean success = FALSE;
     if (fm_file_info_is_image(task->fi) &&
         /* if the image file is too large, don't generate thumbnail for it. */
         (fm_config->thumbnail_max == 0 ||
          fm_file_info_get_size(task->fi) <= (fm_config->thumbnail_max << 10)))
     {
-        generate_thumbnails_with_builtin(task);
+        success = generate_thumbnails_with_builtin(task);
     }
-    else
+    if (!success)
         generate_thumbnails_with_thumbnailers(task);
 
     /* mark it as fully done, see thread loop */

@@ -1082,8 +1082,8 @@ static gboolean on_thumbnailer_timeout(gpointer user_data)
     g_mutex_lock(lock_ptr);
     *timed_out = TRUE;
     thumbnailer_timeout_id = 0;
-    g_mutex_unlock(lock_ptr);
     g_cond_broadcast(cond_ptr);
+    g_mutex_unlock(lock_ptr);
     return FALSE;
 }
 
@@ -1099,16 +1099,27 @@ static void _pid_watcher(GPid pid, gint status, gpointer user_data)
     ThumbnailerStatus *st = user_data;
 
     DEBUG("pid %d terminated", (int)pid);
+    g_mutex_lock(lock_ptr);
     st->status = status;
     st->finished = TRUE;
     g_cond_broadcast(cond_ptr);
+    g_mutex_unlock(lock_ptr);
 }
+
+typedef struct
+{
+    GSource     source;
+    GPid        pid;
+    gint        child_status;
+    gboolean    child_exited; /* (atomic) */
+} GChildWatchSource;
 
 /* call from the thumbnail thread */
 static gboolean run_thumbnailer(FmThumbnailer* thumbnailer, ThumbnailTask* task,
                                 const char* output_file, guint size)
 {
     /* g_print("run_thumbnailer: uri: %s\n", uri); */
+    GChildWatchSource *child_watch_source;
     ThumbnailerStatus status = { FALSE, 0 };
     gboolean timed_out = FALSE;
     GPid _pid = fm_thumbnailer_launch_for_uri_async(thumbnailer, task->uri,
@@ -1126,7 +1137,11 @@ static gboolean run_thumbnailer(FmThumbnailer* thumbnailer, ThumbnailTask* task,
     }
     thumbnailer_timeout_id = g_timeout_add_seconds(THUMBNAILER_TIMEOUT_SEC,
                                                    on_thumbnailer_timeout, &timed_out);
-    g_child_watch_add(_pid, _pid_watcher, &status);
+
+    child_watch_source = (GChildWatchSource *)g_child_watch_source_new(_pid);
+    g_source_set_callback(child_watch_source, (GSourceFunc)_pid_watcher, &status, NULL);
+    g_source_attach(child_watch_source, NULL);
+
     /* g_print("pid: %d\n", thumbnailer_pid); */
     while (!timed_out && !status.finished &&
            !g_cancellable_is_cancelled(task->cancellable))
@@ -1137,9 +1152,16 @@ static gboolean run_thumbnailer(FmThumbnailer* thumbnailer, ThumbnailTask* task,
     if (!status.finished)
         kill(_pid, SIGTERM);
     /* wait for the thumbnailer process to terminate */
-    while (!status.finished)
-        g_cond_wait(cond_ptr, lock_ptr);
+    while (!status.finished) {
+        if (child_watch_source->child_exited) {
+            status.status = child_watch_source->child_status;
+            status.finished = TRUE;
+            break;
+        }
+        g_cond_wait_until(cond_ptr, lock_ptr, g_get_monotonic_time() + 1 * G_TIME_SPAN_SECOND);
+    }
     g_mutex_unlock(lock_ptr);
+    g_source_unref(child_watch_source);
 
     /* the process is terminated */
     return (WIFEXITED(status.status) && WEXITSTATUS(status.status) == 0);
